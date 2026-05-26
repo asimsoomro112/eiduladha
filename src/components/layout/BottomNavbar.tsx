@@ -4,49 +4,86 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useSection } from "@/context/SectionContext"
 import { cn } from "@/lib/utils"
 
-const NAV_ITEMS = [
-  { id: "greeting", label: "Intro", emoji: "🕌", selector: "greeting" },
-  { id: "greeting-wish", label: "Eid Wish", emoji: "🌙", selector: "greeting" },
-  { id: "story", label: "The Spirit", emoji: "📖", selector: "story" },
-  { id: "duas", label: "Dua Stack", emoji: "🤲", selector: "duas" },
-  { id: "timeline", label: "7 Years", emoji: "⏳", selector: "timeline" },
-  { id: "letter", label: "For You", emoji: "💌", selector: "letter" },
-  { id: "future", label: "Our Future", emoji: "🔮", selector: "future" },
-  { id: "closing", label: "Mubarak", emoji: "💖", selector: "closing" },
+const navItems = [
+  { id: "opening",  icon: "✨",  label: "Bismillah" },
+  { id: "greeting", icon: "🌙",  label: "Eid Mubarak" },
+  { id: "ibrahim",  icon: "🤲",  label: "Tawakkul" },
+  { id: "dua",      icon: "💚",  label: "Duas" },
+  { id: "timeline", icon: "💛",  label: "7 Years" },
+  { id: "letter",   icon: "💌",  label: "Letter" },
+  { id: "future",   icon: "💍",  label: "InshaAllah" },
+  { id: "closing",  icon: "🌙",  label: "Always" },
 ]
 
 export default function BottomNavbar() {
-  const { activeSection, visitedSections } = useSection()
+  const { activeSection, isUnlocked, visitedSections } = useSection()
   
   const [isVisible, setIsVisible] = useState(false)
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number; buttonIndex: number }[]>([])
+  
+  // Real-time active section scroll progress state (0 to 1)
+  const [sectionProgress, setSectionProgress] = useState(0)
 
-  // Entry animation delay of 1.5s
+  // Entry spring animation delay of 1.5s
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(true)
-    }, 1500)
-    return () => clearTimeout(timer)
-  }, [])
+    if (isUnlocked) {
+      const timer = setTimeout(() => {
+        setIsVisible(true)
+      }, 1500)
+      return () => clearTimeout(timer)
+    } else {
+      setIsVisible(false)
+    }
+  }, [isUnlocked])
 
-  // Detect mobile keyboard open/close to hide bottom navbar
+  // Track scroll progress of the active section dynamically
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return
+    if (typeof window === "undefined" || !isUnlocked) return
 
-    const handleViewportChange = () => {
-      const viewport = window.visualViewport
-      if (!viewport) return
-      // If height shrinks significantly relative to screen height, keyboard is probably open
-      const threshold = window.screen.height * 0.8
-      setIsKeyboardOpen(viewport.height < threshold)
+    const handleProgressScroll = () => {
+      const sectionEl = document.getElementById(`section-${activeSection}`)
+      if (!sectionEl) {
+        setSectionProgress(1) // Fallback if section element not found
+        return
+      }
+
+      const rect = sectionEl.getBoundingClientRect()
+      const height = rect.height
+      const top = rect.top
+
+      // Calculate how far down we are through the section
+      // 0 means section top is at viewport top, 1 means section bottom is at viewport top
+      const scrolled = -top
+      const maxScroll = height - window.innerHeight
+
+      if (maxScroll <= 0) {
+        // If section is smaller than viewport, base it on active scroll position relative to parent window
+        const progress = Math.min(Math.max((window.innerHeight - top) / height, 0), 1)
+        setSectionProgress(progress)
+      } else {
+        const progress = Math.min(Math.max(scrolled / maxScroll, 0), 1)
+        setSectionProgress(progress)
+      }
     }
 
-    window.visualViewport.addEventListener("resize", handleViewportChange)
-    return () => window.visualViewport?.removeEventListener("resize", handleViewportChange)
+    window.addEventListener("scroll", handleProgressScroll, { passive: true })
+    handleProgressScroll()
+    return () => window.removeEventListener("scroll", handleProgressScroll)
+  }, [activeSection, isUnlocked])
+
+  // Detect mobile keyboard using VisualViewport API
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const handleResize = () => {
+      setKeyboardOpen(vv.height < window.innerHeight * 0.75)
+    }
+    vv.addEventListener("resize", handleResize)
+    return () => vv.removeEventListener("resize", handleResize)
   }, [])
 
-  // Handle ripple logic
+  // Ripple handlers
   const triggerRipple = (e: React.MouseEvent<HTMLButtonElement>, index: number) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
@@ -54,7 +91,6 @@ export default function BottomNavbar() {
     setRipples((prev) => [...prev, { id: Date.now(), x, y, buttonIndex: index }])
   }
 
-  // Remove ripples after animation completes
   useEffect(() => {
     if (ripples.length > 0) {
       const timer = setTimeout(() => {
@@ -64,138 +100,172 @@ export default function BottomNavbar() {
     }
   }, [ripples])
 
-  const handleNavClick = (e: React.MouseEvent<HTMLButtonElement>, id: string, index: number, selector: string) => {
+  const handleNavTap = (e: React.MouseEvent<HTMLButtonElement>, sectionId: string, index: number) => {
     triggerRipple(e, index)
     
-    // Haptic vibration
-    if (navigator.vibrate) {
-      navigator.vibrate(25)
-    }
+    // 1. Haptic feedback
+    if (navigator.vibrate) navigator.vibrate(25)
 
-    const el = document.getElementById(selector)
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" })
-    }
+    // 2. Smooth scroll to section
+    document.getElementById(`section-${sectionId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    })
   }
 
-  // Determine if nav item corresponds to the active section
-  const isItemActive = (item: typeof NAV_ITEMS[0]) => {
-    if (item.id === "greeting" || item.id === "greeting-wish") {
-      return activeSection === "greeting"
-    }
-    return activeSection === item.id
-  }
+  if (!isUnlocked || !isVisible) return null
 
-  // Active section index for progress arc
-  const activeIndex = NAV_ITEMS.findIndex(isItemActive)
-
-  if (isKeyboardOpen || !isVisible) return null
+  // SVG dasharray configurations (radius = 18px)
+  const radius = 18
+  const strokeWidth = 1.5
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - sectionProgress * circumference
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pointer-events-none select-none">
-      <motion.div
-        initial={{ y: 80, opacity: 0, scale: 0.95 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        transition={{ type: "spring", stiffness: 220, damping: 18 }}
-        className={cn(
-          "flex items-center justify-between gap-1 w-full max-w-[420px] px-2 py-2.5 rounded-2xl",
-          "bg-black/35 backdrop-blur-[16px] border border-gold-400/15",
-          "shadow-[0_-8px_32px_rgba(0,0,0,0.5),0_0_24px_rgba(245,200,66,0.04)]",
-          "pointer-events-auto relative overflow-visible"
-        )}
+    <motion.nav
+      initial={{ y: 120, opacity: 0 }}
+      animate={{ 
+        y: keyboardOpen ? 120 : 0, 
+        opacity: keyboardOpen ? 0 : 1 
+      }}
+      transition={{ type: "spring", stiffness: 260, damping: 22 }}
+      className="fixed z-50 left-1/2"
+      style={{
+        width: "fit-content",
+        maxWidth: "calc(100vw - 32px)",
+        bottom: "calc(20px + env(safe-area-inset-bottom))",
+        transform: "translateX(-50%)",
+        pointerEvents: "auto",
+      }}
+    >
+      <div
+        className="flex items-center gap-3"
+        style={{
+          background: "rgba(255, 255, 255, 0.07)",
+          backdropFilter: "blur(28px) saturate(180%) brightness(1.08)",
+          WebkitBackdropFilter: "blur(28px) saturate(180%) brightness(1.08)",
+          border: "1px solid rgba(255, 255, 255, 0.14)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.22)",
+          boxShadow: "0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.16)",
+          borderRadius: "9999px",
+          padding: "10px 16px",
+        }}
       >
-        {NAV_ITEMS.map((item, index) => {
-          const isActive = isItemActive(item)
-          const isVisited = visitedSections.has(item.selector)
+        {navItems.map((item, index) => {
+          const isActive = activeSection === item.id
+          const isVisited = visitedSections.has(item.id)
           const isLetterHeartbeat = item.id === "letter" && activeSection === "letter"
 
           return (
             <button
               key={item.id}
-              onClick={(e) => handleNavClick(e, item.id, index, item.selector)}
+              onClick={(e) => handleNavTap(e, item.id, index)}
               className={cn(
-                "relative flex flex-col items-center justify-center flex-1 h-12 rounded-xl transition-all duration-300",
-                "cursor-pointer focus:outline-none select-none overflow-visible active:scale-95"
+                "relative w-10 h-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 select-none overflow-visible outline-none active:scale-90"
               )}
-              style={{ minWidth: "40px" }}
-              aria-label={`Navigate to ${item.label}`}
+              aria-label={`Go to ${item.label}`}
             >
-              {/* Gold Sliding Active Background */}
+              {/* Active Morphing Gold Background Circle */}
               {isActive && (
                 <motion.div
-                  layoutId="bottom-nav-active-pill"
-                  className="absolute inset-0 rounded-xl bg-gradient-to-b from-gold-400/15 to-gold-600/5 border border-gold-400/20"
-                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  layoutId="active-pill"
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: "rgba(245, 200, 66, 0.18)",
+                    border: "1px solid rgba(245, 200, 66, 0.35)",
+                    boxShadow: "0 0 18px rgba(245,200,66,0.45), 0 0 36px rgba(245,200,66,0.15)"
+                  }}
+                  transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
 
-              {/* Visited Section Dot Indicator */}
-              <div 
-                className={cn(
-                  "absolute top-1.5 w-1 h-1 rounded-full transition-all duration-300",
-                  isVisited ? "bg-gold-400 shadow-[0_0_4px_#f5c842]" : "bg-white/10"
-                )}
+              {/* Visited / Completion Dot below the icon */}
+              <div
+                className="absolute bottom-0.5 w-1 h-1 rounded-full transition-all duration-300"
+                style={{
+                  backgroundColor: isVisited ? "rgba(245, 200, 66, 0.8)" : "rgba(255, 255, 255, 0.2)",
+                  boxShadow: isVisited ? "0 0 4px rgba(245, 200, 66, 0.8)" : "none",
+                }}
               />
 
-              {/* Emoji Wrapper */}
-              <div 
+              {/* Icon Emoji wrapper */}
+              <motion.div
+                animate={
+                  isLetterHeartbeat
+                    ? { scale: [1, 1.2, 1, 1.2, 1] }
+                    : isActive 
+                    ? { scale: 1.18 }
+                    : { scale: 1 }
+                }
+                transition={
+                  isLetterHeartbeat
+                    ? { duration: 0.8, repeat: Infinity, repeatDelay: 1.5 }
+                    : { duration: 0.2 }
+                }
                 className={cn(
-                  "relative flex items-center justify-center w-8 h-8 z-10 transition-transform duration-300",
-                  isActive ? "scale-110 text-gold-400 drop-shadow-[0_0_8px_rgba(245,200,66,0.6)]" : "text-white/60",
-                  isLetterHeartbeat && "animate-[pulse_1s_infinite_ease-in-out]"
+                  "relative flex items-center justify-center z-10 w-9 h-9 text-[22px] transition-colors duration-300"
                 )}
               >
                 {/* Scroll Progress Arc SVG (Only on Active Item) */}
                 {isActive && (
-                  <svg className="absolute inset-0 w-8 h-8 -rotate-90 pointer-events-none">
+                  <svg className="absolute inset-0 w-9 h-9 -rotate-90 pointer-events-none">
                     <circle
-                      cx="16"
-                      cy="16"
-                      r="14"
+                      cx="18"
+                      cy="18"
+                      r={radius}
                       fill="transparent"
-                      stroke="rgba(245, 200, 66, 0.15)"
-                      strokeWidth="1.5"
+                      stroke="rgba(245, 200, 66, 0.1)"
+                      strokeWidth={strokeWidth}
                     />
-                    <motion.circle
-                      cx="16"
-                      cy="16"
-                      r="14"
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r={radius}
                       fill="transparent"
                       stroke="#f5c842"
-                      strokeWidth="1.5"
-                      strokeDasharray={2 * Math.PI * 14}
-                      initial={{ strokeDashoffset: 2 * Math.PI * 14 }}
-                      animate={{ strokeDashoffset: 0 }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
                     />
                   </svg>
                 )}
                 
-                <span className="text-lg relative leading-none select-none">{item.emoji}</span>
-              </div>
+                <span className="leading-none select-none">{item.icon}</span>
+              </motion.div>
 
               {/* Floating Active Label */}
               <AnimatePresence>
                 {isActive && (
-                  <motion.span
-                    initial={{ opacity: 0, y: 10, scale: 0.85 }}
-                    animate={{ opacity: 1, y: -26, scale: 1 }}
-                    exit={{ opacity: 0, y: 5, scale: 0.85 }}
-                    transition={{ type: "spring", stiffness: 350, damping: 18 }}
-                    className={cn(
-                      "absolute font-display text-[10px] font-bold text-gold-400 bg-[#160029]/95 px-2 py-0.5 rounded-full border border-gold-400/20 whitespace-nowrap shadow-[0_-4px_12px_rgba(0,0,0,0.5)] z-20 pointer-events-none"
-                    )}
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.85 }}
+                    transition={{ duration: 0.25, ease: "backOut" }}
+                    className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap z-20 pointer-events-none"
+                    style={{
+                      background: "rgba(245,200,66,0.9)",
+                      color: "#1a0a00",
+                      fontSize: "10px",
+                      fontFamily: "Inter",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "9999px",
+                      letterSpacing: "0.04em",
+                      boxShadow: "0 4px 12px rgba(245,200,66,0.4)"
+                    }}
                   >
                     {item.label}
-                  </motion.span>
+                  </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Gold Tap Ripple Element */}
+              {/* Custom Gold Ripple Element */}
               {ripples.filter(r => r.buttonIndex === index).map((ripple) => (
                 <span
                   key={ripple.id}
-                  className="absolute rounded-full bg-gold-400/30 pointer-events-none animate-ping"
+                  className="absolute rounded-full bg-gold-400/35 pointer-events-none animate-ping"
                   style={{
                     left: ripple.x - 20,
                     top: ripple.y - 20,
@@ -207,7 +277,7 @@ export default function BottomNavbar() {
             </button>
           )
         })}
-      </motion.div>
-    </div>
+      </div>
+    </motion.nav>
   )
 }

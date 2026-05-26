@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { Inter, Cormorant_Garamond, Amiri } from "next/font/google";
 import "./globals.css";
 
+// Import navigation state and bars
+import { SectionProvider } from "@/context/SectionContext"
+import TopNavbar from "@/components/layout/TopNavbar"
+import BottomNavbar from "@/components/layout/BottomNavbar"
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -41,7 +46,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${cormorantGaramond.variable} ${amiri.variable}`}>
       <body className="antialiased min-h-screen bg-[#07000f] text-white">
-        {children}
+        <SectionProvider>
+          <TopNavbar />
+          <main>{children}</main>
+          <BottomNavbar />
+        </SectionProvider>
       </body>
     </html>
   );

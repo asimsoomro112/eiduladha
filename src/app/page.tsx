@@ -1,14 +1,12 @@
 "use client"
-import React, { useState } from "react"
+import React from "react"
 import dynamic from "next/dynamic"
 
 // Import layout controls & context
 import ScrollProgress from "@/components/layout/ScrollProgress"
 import SectionDots from "@/components/layout/SectionDots"
-import { SectionProvider } from "@/context/SectionContext"
+import { useSection } from "@/context/SectionContext"
 import { useSectionObserver } from "@/hooks/useSectionObserver"
-import TopNavbar from "@/components/layout/TopNavbar"
-import BottomNavbar from "@/components/layout/BottomNavbar"
 
 // Import Section 1 statically since it is the initial screen
 import OpeningScreen from "@/components/sections/OpeningScreen"
@@ -22,56 +20,11 @@ const LoveLetter = dynamic(() => import("@/components/sections/LoveLetter"), { s
 const FutureSection = dynamic(() => import("@/components/sections/FutureSection"), { ssr: false });
 const ClosingSection = dynamic(() => import("@/components/sections/ClosingSection"), { ssr: false });
 
-function MainContent({ isUnlocked, setIsUnlocked }: { isUnlocked: boolean; setIsUnlocked: React.Dispatch<React.SetStateAction<boolean>> }) {
-  // Activate observer only after page is unlocked to monitor scroll/navigation position
-  useSectionObserver();
-
-  return (
-    <main className="relative min-h-screen w-full overflow-x-hidden">
-      {!isUnlocked ? (
-        <OpeningScreen onUnlock={() => setIsUnlocked(true)} />
-      ) : (
-        <>
-          {/* Premium Top Navigation */}
-          <TopNavbar />
-
-          {/* Scroll progress line at top */}
-          <ScrollProgress />
-
-          {/* Floating side dots indicator */}
-          <SectionDots />
-
-          {/* Section 2 - Eid Greeting */}
-          <EidAdhaGreeting />
-
-          {/* Section 3 - Parallel Ibrahim Story */}
-          <IbrahimStory />
-
-          {/* Section 4 - Duas Stack */}
-          <DuaSection />
-
-          {/* Section 5 - 7 Years Timeline */}
-          <LoveTimeline />
-
-          {/* Section 6 - Handwritten Love Letter */}
-          <LoveLetter />
-
-          {/* Section 7 - Future prayer swipe cards */}
-          <FutureSection />
-
-          {/* Section 8 - Closing screen & hearts */}
-          <ClosingSection />
-
-          {/* Premium Bottom Navigation */}
-          <BottomNavbar />
-        </>
-      )}
-    </main>
-  );
-}
-
 export default function Home() {
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const { isUnlocked, setIsUnlocked } = useSection();
+
+  // Call section observer to update the dynamic active layout index when scrolling
+  useSectionObserver();
 
   React.useEffect(() => {
     if (isUnlocked) {
@@ -85,8 +38,55 @@ export default function Home() {
   }, [isUnlocked]);
 
   return (
-    <SectionProvider>
-      <MainContent isUnlocked={isUnlocked} setIsUnlocked={setIsUnlocked} />
-    </SectionProvider>
+    <main className="relative min-h-screen w-full overflow-x-hidden">
+      {!isUnlocked ? (
+        <section id="section-opening">
+          <OpeningScreen onUnlock={() => setIsUnlocked(true)} />
+        </section>
+      ) : (
+        <>
+          {/* Scroll progress line at top */}
+          <ScrollProgress />
+
+          {/* Floating side dots indicator */}
+          <SectionDots />
+
+          {/* Section 2 - Eid Greeting */}
+          <section id="section-greeting">
+            <EidAdhaGreeting />
+          </section>
+
+          {/* Section 3 - Parallel Ibrahim Story */}
+          <section id="section-ibrahim">
+            <IbrahimStory />
+          </section>
+
+          {/* Section 4 - Duas Stack */}
+          <section id="section-dua">
+            <DuaSection />
+          </section>
+
+          {/* Section 5 - 7 Years Timeline */}
+          <section id="section-timeline">
+            <LoveTimeline />
+          </section>
+
+          {/* Section 6 - Handwritten Love Letter */}
+          <section id="section-letter">
+            <LoveLetter />
+          </section>
+
+          {/* Section 7 - Future prayer swipe cards */}
+          <section id="section-future">
+            <FutureSection />
+          </section>
+
+          {/* Section 8 - Closing screen & hearts */}
+          <section id="section-closing">
+            <ClosingSection />
+          </section>
+        </>
+      )}
+    </main>
   );
 }
