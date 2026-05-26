@@ -2,9 +2,13 @@
 import React, { useState } from "react"
 import dynamic from "next/dynamic"
 
-// Import layout controls
+// Import layout controls & context
 import ScrollProgress from "@/components/layout/ScrollProgress"
 import SectionDots from "@/components/layout/SectionDots"
+import { SectionProvider } from "@/context/SectionContext"
+import { useSectionObserver } from "@/hooks/useSectionObserver"
+import TopNavbar from "@/components/layout/TopNavbar"
+import BottomNavbar from "@/components/layout/BottomNavbar"
 
 // Import Section 1 statically since it is the initial screen
 import OpeningScreen from "@/components/sections/OpeningScreen"
@@ -18,19 +22,9 @@ const LoveLetter = dynamic(() => import("@/components/sections/LoveLetter"), { s
 const FutureSection = dynamic(() => import("@/components/sections/FutureSection"), { ssr: false });
 const ClosingSection = dynamic(() => import("@/components/sections/ClosingSection"), { ssr: false });
 
-export default function Home() {
-  const [isUnlocked, setIsUnlocked] = useState(false);
-
-  React.useEffect(() => {
-    if (isUnlocked) {
-      const timer = setTimeout(() => {
-        import("@/lib/gsap-config").then(({ ScrollTrigger }) => {
-          ScrollTrigger.refresh();
-        });
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isUnlocked]);
+function MainContent({ isUnlocked, setIsUnlocked }: { isUnlocked: boolean; setIsUnlocked: React.Dispatch<React.SetStateAction<boolean>> }) {
+  // Activate observer only after page is unlocked to monitor scroll/navigation position
+  useSectionObserver();
 
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden">
@@ -38,6 +32,9 @@ export default function Home() {
         <OpeningScreen onUnlock={() => setIsUnlocked(true)} />
       ) : (
         <>
+          {/* Premium Top Navigation */}
+          <TopNavbar />
+
           {/* Scroll progress line at top */}
           <ScrollProgress />
 
@@ -64,8 +61,32 @@ export default function Home() {
 
           {/* Section 8 - Closing screen & hearts */}
           <ClosingSection />
+
+          {/* Premium Bottom Navigation */}
+          <BottomNavbar />
         </>
       )}
     </main>
+  );
+}
+
+export default function Home() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  React.useEffect(() => {
+    if (isUnlocked) {
+      const timer = setTimeout(() => {
+        import("@/lib/gsap-config").then(({ ScrollTrigger }) => {
+          ScrollTrigger.refresh();
+        });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isUnlocked]);
+
+  return (
+    <SectionProvider>
+      <MainContent isUnlocked={isUnlocked} setIsUnlocked={setIsUnlocked} />
+    </SectionProvider>
   );
 }
